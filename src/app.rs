@@ -2,11 +2,11 @@
 use egui::{
     plot::{Line, MarkerShape, Plot, Value, Values},
     text::LayoutJob,
-    TextStyle,
+    Style, TextStyle, Ui,
 };
 use nalgebra::*;
 
-use eframe::epaint::{CircleShape, Fonts, TextShape};
+use eframe::epaint::{CircleShape, Fonts, RectShape, TextShape};
 use egui::{Color32, Frame, Pos2};
 use lib_genetic_algo::Statistics;
 /// We derive Deserialize/Serialize so we can persist app state on shutdown.
@@ -110,7 +110,7 @@ impl eframe::App for TemplateApp {
         egui::SidePanel::left("side_panel").show(ctx, |ui| {
             ui.heading("Settings");
 
-            ui.add(egui::Slider::new(rect_scale, 0.1..=10.0).text("Scale rectangle"));
+            ui.add(egui::Slider::new(rect_scale, 0.1..=10.0).text("Scale"));
             ui.horizontal(|ui| {
                 if ui.button("Zoom in").clicked() {
                     *rect_scale += 0.1;
@@ -196,6 +196,7 @@ impl eframe::App for TemplateApp {
 
             ui.heading("Simulation viewport");
             egui::warn_if_debug_build(ui);
+            ui.small("The simulation is rendered at 60fps.");
             if let Some(new_statistics) = simulation.step_forward(&mut thread_rng()) {
                 *statistics = new_statistics.clone();
                 logger.data.push(new_statistics);
@@ -203,7 +204,14 @@ impl eframe::App for TemplateApp {
             }
 
             let font_id = TextStyle::Monospace.resolve(ui.style());
-            Frame::canvas(ui.style()).show(ui, |ui| {
+            let style = Style {
+                visuals: egui::Visuals {
+                    extreme_bg_color: Color32::from_rgb(19, 38, 58),
+                    ..Default::default()
+                },
+                ..Default::default()
+            };
+            Frame::canvas(&style).show(ui, |ui| {
                 let (response, painter) =
                     ui.allocate_painter(ui.available_size_before_wrap(), egui::Sense::hover());
                 let galley = ui.painter().layout_no_wrap(
@@ -214,26 +222,34 @@ impl eframe::App for TemplateApp {
                 let window_size_width = response.rect.width();
 
                 let window_size_height = response.rect.height();
-                let text_pos = Pos2::new(window_size_width + 80.0, 100.0);
+                let text_pos = Pos2::new(window_size_width + 150.0, window_size_height);
 
                 painter.add(TextShape::new(text_pos, galley));
 
                 let r = (response.rect.width() * 0.003) * *rect_scale;
-                let bird_color = Color32::from_rgb(0, 153, 255);
+                let ant_color = Color32::from_rgb(0, 204, 153);
                 let food_color = Color32::from_rgb(255, 102, 204);
-                for bird in simulation.world().animals() {
-                    // let vision_input = &bird.vision_input;
+
+                for ant in simulation.world().animals() {
+                    // let vision_input = &ant.vision_input;
                     // let vision_len = &vision_input.len();
+                    let rot = ant.rotation().angle();
                     let circle_pos = Pos2::new(
-                        bird.position().x * (window_size_width) * *rect_scale + 400.0,
-                        bird.position().y * window_size_height * *rect_scale + 100.0,
+                        ant.position().x * (window_size_width) * *rect_scale + 200.0,
+                        ant.position().y * window_size_height * *rect_scale + 100.0,
                     );
-                    painter.add(CircleShape::filled(circle_pos, r, bird_color));
+                    painter.add(CircleShape::filled(circle_pos, r, ant_color));
+
+                    let ant_pointer_pos = Pos2::new(
+                        circle_pos.x + 8.0 * rot.cos(),
+                        circle_pos.y + 8.0 * rot.sin(),
+                    );
+                    painter.add(CircleShape::filled(ant_pointer_pos, r * 0.7, ant_color));
                 }
 
                 for food in simulation.world().food() {
                     let center = Pos2::new(
-                        food.position().x * (window_size_width) * *rect_scale + 400.0,
+                        food.position().x * (window_size_width) * *rect_scale + 200.0,
                         food.position().y * window_size_height * *rect_scale + 100.0,
                     );
                     painter.add(CircleShape::filled(center, r * 0.7, food_color));
